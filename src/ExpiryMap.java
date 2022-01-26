@@ -1,8 +1,8 @@
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
@@ -11,11 +11,11 @@ public class ExpiryMap<K,V> implements Map<K,V> {
 
     DelayQueue<Ele<K>> queue;
 
-    HashMap<K,V> map;
+    ConcurrentHashMap<K,V> map;
 
     public ExpiryMap() {
         queue = new DelayQueue<>();
-        map = new HashMap<>();
+        map = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -53,17 +53,20 @@ public class ExpiryMap<K,V> implements Map<K,V> {
         return map.put(key,value);
     }
 
+    // 带失效时间的put方法
     public V put(K key,V value,long expire,TimeUnit unit){
         Ele<K> ele = new Ele<>(key, System.currentTimeMillis() + unit.toMillis(expire));
-        if(queue.contains(ele)){
-            queue.remove(ele);
+        synchronized (this){
+            if(queue.contains(ele)){
+                queue.remove(ele);
+            }
+            queue.add(ele);
+            return map.put(key,value);
         }
-        queue.add(ele);
-        return map.put(key,value);
     }
 
     @Override
-    public V remove(Object key) {
+    public synchronized V remove(Object key) {
         Ele<K> eleKey = queue.stream().filter(ele -> ele.getKey().equals(key)).findFirst().orElse(null);
         if(eleKey!=null) queue.remove(eleKey);
         return map.remove(key);
@@ -75,7 +78,7 @@ public class ExpiryMap<K,V> implements Map<K,V> {
     }
 
     @Override
-    public void clear() {
+    public synchronized void clear() {
         queue.clear();
         map.clear();
     }
@@ -98,7 +101,7 @@ public class ExpiryMap<K,V> implements Map<K,V> {
         return map.entrySet();
     }
 
-    private void removeExpire(){
+    private synchronized void removeExpire(){
         Ele ele = null;
         while((ele = queue.poll()) != null){
             map.remove(ele.getKey());

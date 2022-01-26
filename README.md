@@ -1,5 +1,5 @@
 # expiry-map
- Key值可以失效的HashMap，LRU机制的HashMap
+ Key值可以失效的Map。LRU机制，多线程安全的Map。
 
 
 # 使用示例
